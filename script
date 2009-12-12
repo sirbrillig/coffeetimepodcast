@@ -1,0 +1,121 @@
+#!/usr/bin/ruby
+
+require 'net/http'
+require 'pathname'
+require 'time'
+# Load the coffeetimearchive.org page.
+url = 'http://homepage.mac.com/angelynng/Coffeetime/Coffeetime.html'
+uri = URI.parse(url)
+path = url.scan(/(.+\/)[^\/]+$/)[0][0]
+
+response = Net::HTTP.get_response(uri)
+
+# Screenscrape the titles and links to the Hi-Bandwidth streams.
+streams = {}
+response.body.scan(%r-<a href="Coffeetime(\d{6})\.mp3">([^<]+)</a>-) do |stream|
+    date, title = stream[0], stream[1]
+    # the dates are MMDDYY, so in order to facilitate sorting, change them to YYMMDD.
+    date = date[-2 .. -1]+date[0 .. 3]
+    streams[title] = {:link => path+'Coffeetime'+date+'.mp3', :date => date}
+end
+
+# Sort podcasts by date (use the numeric date on the mp3 file).
+stream_keys = streams.keys.sort { |a,b| streams[a][:date] <=> streams[b][:date] }
+
+# Only try the last four podcasts.
+stream_keys = stream_keys.reverse[0 .. 3]
+
+# Code from: http://ladydeals.com/posting-to-bloggerblogspot-with-ruby-programmatically/
+require 'net/http'
+require 'net/https'
+
+unless ENV['GDATA_USER'] and ENV['GDATA_PASS'] and ENV['GDATA_BLOG_ID']
+  puts "#{$0} requires GDATA_USER, GDATA_PASS, and GDATA_BLOG_ID to be set"
+  exit
+end
+
+googleEmail = ENV['GDATA_USER']
+googlepasswd = ENV['GDATA_PASS']
+blogId = ENV['GDATA_BLOG_ID'] # Go to blogspot dashboard and click on your blog's “Posts" link and you will see the blog ID in the URL
+source = 'ladydeals.com-rubyPost-1.0' #unimportant, google recommend it in <companyName-applicationName-versionID> format
+
+http = Net::HTTP.new('www.google.com', 443)
+http.use_ssl = true
+urlPath = '/accounts/ClientLogin'
+
+# Setup HTTPS request post data to obtain authentication token.
+data = 'Email=' + googleEmail +'&Passwd=' + googlepasswd + '&source=' + source + '&service=blogger'# Setup HTTPS request header to obtain authentication token.
+headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
+
+# Submit HTTPS post request
+resp, data = http.post(urlPath, data, headers)
+
+# Output on the screen -> we should get either a 302 redirect (after a successful login) or an error page
+# Expect resp.code == 200 and resp.message == 'OK' for a successful.
+
+if (!(resp.code.eql? '200'))
+  puts "Failed to log into Blogger.com.";
+  puts 'Code = ' + resp.code
+  puts 'Message = ' + resp.message
+  exit
+end
+#resp.each {|key, val| puts key + ' = ' + val}
+# The responsed data will contain three lines which hold SID, LSID, and Auth. We can disregard SID and LSID
+
+# Parse for the authentication token.
+dataLines = data.split("\n")
+authPair = dataLines[2]
+authPairArray = authPair.split("=")
+authToken = authPairArray[1]
+
+# Setup HTTP request post head to make a blog post.
+headers = { 'Authorization' => 'GoogleLogin auth=' + authToken, 'Content-Type' => 'application/atom+xml' }
+
+http = Net::HTTP.new('www.blogger.com')
+path = '/feeds/' + blogId + '/posts/default'
+
+# Check for duplicates.
+resp = http.get(path)
+if (resp.code !~ /^20\d/)
+  puts "Failed to log into Blogger.com.";
+  puts 'Code = ' + resp.code
+  puts 'Message = ' + resp.message
+  exit
+end
+blog_entry_keys = Array.new
+stream_keys.each do |stream_key|
+  blog_title = "#{stream_key}"
+  if resp.body =~ />#{blog_title}</
+    puts "A blog entry with the title '#{blog_title}' already exists. Skipping."
+  else
+    blog_entry_keys << stream_key
+  end
+end
+puts "Sending #{blog_entry_keys.size} blog entries to Blogger.com."
+
+blog_entry_keys.each do |blog_entry_key|
+  # Setup HTTP request data to make a blog post.
+  blog_title = "#{blog_entry_key}"
+  blog_media_url = "#{streams[blog_entry_key][:link].to_s}"
+  data = <<dataEnd
+<entry xmlns='http://www.w3.org/2005/Atom'>
+<title type='text'>#{blog_title}</title>
+<content type='xhtml'>
+<div xmlns="http://www.w3.org/1999/xhtml">CoffeeTime #{blog_title}: <a href="#{blog_media_url}">#{blog_media_url}</a></div>
+</content>
+</entry>
+dataEnd
+
+  resp, data = http.post(path, data, headers)
+
+  # Expect resp.code == 200 and resp.message == 'OK' for a successful.
+  puts "Sent a blog entry with the title '#{blog_title}' to Blogger.com."
+  if (resp.code !~ /^20\d/)
+    puts "Post failed."
+    puts 'Code = ' + resp.code
+    puts 'Message = ' + resp.message
+    puts "path=#{path}"
+    puts "headers=#{headers}"
+    puts "data=#{data}"
+  end
+end
