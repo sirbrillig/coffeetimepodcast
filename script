@@ -83,7 +83,7 @@ if (resp.code !~ /^20\d/)
   exit
 end
 blog_entry_keys = Array.new
-stream_keys.each do |stream_key|
+stream_keys.reverse.each do |stream_key|
   blog_title = "#{stream_key}"
   if resp.body =~ />#{blog_title}</
     puts "A blog entry with the title '#{blog_title}' already exists. Skipping."
