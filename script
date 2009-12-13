@@ -15,8 +15,8 @@ streams = {}
 response.body.scan(%r-<a href="Coffeetime(\d{6})\.mp3">([^<]+)</a>-) do |stream|
     date, title = stream[0], stream[1]
     # the dates are MMDDYY, so in order to facilitate sorting, change them to YYMMDD.
-    date = date[-2 .. -1]+date[0 .. 3]
-    streams[title] = {:link => path+'Coffeetime'+date+'.mp3', :date => date}
+    newdate = date[-2 .. -1]+date[0 .. 3]
+    streams[title] = {:link => path+'Coffeetime'+date+'.mp3', :date => newdate}
 end
 
 # Sort podcasts by date (use the numeric date on the mp3 file).
