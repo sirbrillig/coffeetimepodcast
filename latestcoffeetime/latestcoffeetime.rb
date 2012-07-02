@@ -7,23 +7,26 @@
 # 2012-06-29
 #
 
-#require 'nokogiri'
 require 'open-uri'
 require 'optparse'
+require 'rubygems'
 
 
 class CoffeeTimeEpisode
   attr_accessor :archive_url
+  attr_accessor :disable_parsing, :verbose
   attr_reader :episode_url
 
   # Return a CoffeeTimeEpisode of the latest episode.
-  def self.latest
-    CoffeeTimeEpisode.new.set_latest
+  def self.latest(options)
+    CoffeeTimeEpisode.new(options).set_latest
   end
 
-  def initialize
+  def initialize(options)
     @archive_url = 'http://wmbr.org/cgi-bin/arch'
     @episode_url = ''
+    @verbose = options[:verbose]
+    @disable_parsing = options[:disable_parsing]
   end
 
   # Download the file at episode URL.
@@ -44,38 +47,60 @@ class CoffeeTimeEpisode
     self
   end
 
-  # Return the URL of the latest episode.
-  def latest_url
-    #doc = Nokigiri::HTML(open(archive_url))
-    #doc.traverse do |element|
-    #  return element # FIXME
-    #end
+  # Return the first file URL from within a playlist (m3u).
+  def url_from_playlist(playlist_url)
+    m3u = open(playlist_url)
+    if m3u.read =~ /^(http:\/\/.+)/
+      return $1
+    else
+      raise "Cannot find episode URL in playlist file."
+    end
+  end
 
-    # Note: this is bad because we're trying to parse HTML using a REGEXP. Ideally
-    # use an HTML parser like nokogiri.
+  # Return the URL of the latest episode using only core Ruby. You should use
+  # latest_url instead.
+  #
+  # Note: this is bad because we're trying to parse HTML using a REGEXP. Ideally
+  # use an HTML parser like nokogiri.
+  def latest_url_old
+    puts "old style parsing..." if self.verbose
     doc = open(self.archive_url)
     if doc.read =~ /a href=\"(http:\/\/wmbr\.org\/m3u\/Coffeetime_.+?\.m3u)"/
       playlist_url = $1
-      m3u = open(playlist_url)
-      if m3u.read =~ /^(http:\/\/.+)/
-        episode = $1
-        return episode
-      else
-        raise "Cannot find episode URL in playlist file."
-      end
+      return url_from_playlist(playlist_url)
     else
       raise "Cannot find episode on archive page (#{self.archive_url})."
     end
   end
+
+  # Return the URL of the latest episode. 
+  #
+  # If this fails to load nokogiri, it will default to basic Ruby.
+  def latest_url
+    return latest_url_old if self.disable_parsing
+    begin
+      require 'nokogiri'
+    rescue LoadError
+      return latest_url_old
+    end
+    puts "nokogiri is parsing..." if self.verbose
+    doc = Nokogiri::HTML(open(archive_url))
+    nodes = doc.xpath("//a[\@href]").select { |node| node['href'] =~ /CoffeeTime/i }
+    raise "Cannot find episode on archive page (#{self.archive_url})." if nodes.empty?
+    url_from_playlist(nodes.first['href'])
+  end
+
 end
+
+
 
 if __FILE__ == $0
   options = {}
   optparse = OptionParser.new do |opts|
-    opts.on("--get") do |o|
-      options[:get] = o
-    end
+    opts.on("--get") { options[:get] = true }
     opts.on("--archive_url") { |o| puts CoffeeTimeEpisode.new.archive_url; exit; }
+    opts.on("--old_parse") { options[:disable_parsing] = true }
+    opts.on("--verbose") { options[:verbose] = true }
   end.parse!
 
   if options[:get]
@@ -83,6 +108,7 @@ if __FILE__ == $0
     CoffeeTimeEpisode.latest.download
     puts "Done."
   else
-    puts CoffeeTimeEpisode.latest.episode_url
+    ep = CoffeeTimeEpisode.latest(options)
+    puts ep.episode_url
   end
 end
