@@ -1,4 +1,4 @@
-#!/opt/local/bin/ruby
+#!/usr/bin/ruby
 
 # A tool to report (and download, if desired) the latest recorded CoffeeTime
 # episode from WMBR's archives.
@@ -22,7 +22,7 @@ class CoffeeTimeEpisode
     CoffeeTimeEpisode.new(options).set_latest
   end
 
-  def initialize(options)
+  def initialize(options={})
     @archive_url = 'http://wmbr.org/cgi-bin/arch'
     @episode_url = ''
     @verbose = options[:verbose]
@@ -105,7 +105,7 @@ if __FILE__ == $0
 
   if options[:get]
     puts "Downloading..."
-    CoffeeTimeEpisode.latest.download
+    CoffeeTimeEpisode.latest(options).download
     puts "Done."
   else
     ep = CoffeeTimeEpisode.latest(options)
