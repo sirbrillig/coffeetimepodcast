@@ -1,0 +1,5 @@
+#!/usr/bin/ruby
+
+ENV['GDATA_BLOG_ID'] = "01010101010101"
+ENV['GDATA_PASS'] = "thisisapassword"
+ENV['GDATA_USER'] = "myblog@blogger.com"

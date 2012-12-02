@@ -41,9 +41,10 @@ class BlogPoster
 
     # Output on the screen -> we should get either a 302 redirect (after a successful login) or an error page
     # Expect resp.code == 200 and resp.message == 'OK' for a successful.
-    raise "Failed to log into Blogger.com.\nCode = #{resp.code}\n Message = #{resp.message}" if (!(resp.code.eql? '200'))
+    raise "Failed to log into Blogger.com.\nCode = #{resp.code}; Message = #{resp.message}" if (!(resp.code.eql? '200'))
     #resp.each {|key, val| puts key + ' = ' + val}
     # The response data will contain three lines which hold SID, LSID, and Auth. We can disregard SID and LSID.
+    raise "No data returned from server during login to Blogger.com. Code = #{resp.code}; Message = #{resp.message}" if data.nil?
 
     # Parse for the authentication token.
     dataLines = data.split("\n")
