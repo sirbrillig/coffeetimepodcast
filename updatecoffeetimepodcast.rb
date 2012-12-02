@@ -92,5 +92,11 @@ dataEnd
 end
 
 
-latest_ep = CoffeeTimeEpisode.latest
-BlogPoster.new.post_podcast(latest_ep.title, latest_ep.episode_url)
+if __FILE__ == $0
+  latest_ep = CoffeeTimeEpisode.latest
+  begin
+    BlogPoster.new.post_podcast(latest_ep.title, latest_ep.episode_url)
+  rescue Exception => e
+    puts "Uploading failed: #{e}"
+  end
+end
